@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<config>
+    <modules>
+        <Ebizmarts_Recommender>
+            <active>true</active>
+            <codePool>local</codePool>
+            <depends></depends>
+        </Ebizmarts_Recommender>
+    </modules>
+</config>
