@@ -1,0 +1,15 @@
+{
+    "name": "ebizmarts/product-recommendations",
+    "license": "OSL-3.0",
+    "type": "magento-module",
+    "description": "Product recommendations.",
+    "require": {
+        "magento-hackathon/magento-composer-installer": "*"
+    },
+    "authors":[
+        {
+            "name":"Ebizmarts",
+            "email":"info@ebizmarts.com"
+        }
+    ]
+}
