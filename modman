@@ -1,3 +1,4 @@
-src/app/code/local/Ebizmarts/Recommender     app/code/local/Ebizmarts/Recommender
-src/app/etc/modules/*    app/etc/modules/
-#src/tests/*	tests
+src/app/code/local/Ebizmarts/Recommender  app/code/local/Ebizmarts/Recommender
+src/app/etc/modules/*                     app/etc/modules/
+src/shell/*.php                           shell/
+#src/tests/* tests
