@@ -23,7 +23,7 @@ class Ebizmarts_Recommender_AiShell extends Mage_Shell_Abstract
     );
 
     private $_storeId   = null;
-    private $_pageSize  = 1000;
+    private $_pageSize  = 10000;
     private $_debug     = false;
     private $_profiler  = false;
     /**
@@ -114,6 +114,7 @@ class Ebizmarts_Recommender_AiShell extends Mage_Shell_Abstract
 
     private function processResource($resource)
     {
+        $cronModel = Mage::getModel('Ebizmarts_Recommender_Model_Cron');
 
         $this->trace("********** >>> Processing {$resource} " . Mage::getModel('core/date')->gmtDate('Y-m-d H:i:s') . " **********\n\n");
 
@@ -123,10 +124,16 @@ class Ebizmarts_Recommender_AiShell extends Mage_Shell_Abstract
 
             $this->trace("START: Processing page {$pageNumber} " . Mage::getModel('core/date')->gmtDate('Y-m-d H:i:s') . "\n");
 
-            Mage::getModel('Ebizmarts_Recommender_Model_Cron')
-                ->catalog($this->_pageSize, $this->getStoreId());
-
-            //Mage::helper('bakerloo_restful/pages')->storeData($resource, $data, $this->getStoreId(), $pageNumber);
+            if ($resource == 'catalog') {
+                $data = $cronModel
+                    ->catalog($this->_pageSize, $this->getStoreId());
+            }
+            else {
+                if ($resource == 'usage') {
+                    $data = $cronModel
+                        ->usage($this->_pageSize, $this->getStoreId());
+                }
+            }
 
             $this->trace("FINISH: Processing page {$pageNumber} " . Mage::getModel('core/date')->gmtDate('Y-m-d H:i:s') . "\n\n");
 
@@ -137,27 +144,32 @@ class Ebizmarts_Recommender_AiShell extends Mage_Shell_Abstract
         } else {
             $data = array();
             $data['next_page'] = $this->_startPage - 1;
-            $pageNumber = $this->_startPage - 1;
+            $pageNumber        = $this->_startPage - 1;
         }
 
-        //$ioAdapter = $this->getIo($this->getStoreId(), $resource, false);
-
         //Save from page 2 to page n
-//        while (!is_null($data['next_page'])) {
-//            $pageNumber++;
-//
-//            $this->trace("START: Processing page {$pageNumber} " . Mage::getModel('core/date')->gmtDate('Y-m-d H:i:s') . "\n");
-//
-//            $data = Mage::helper('bakerloo_restful/pages')->getData($resource, -1, $this->_pageSize, $pageNumber, $this->getStoreId());
-//
-//            $ioAdapter->write("page" . str_pad($pageNumber, 5, '0', STR_PAD_LEFT) . ".ser", serialize($data['page_data']));
-//
-//            $this->trace("FINISH: Processing page {$pageNumber} " . Mage::getModel('core/date')->gmtDate('Y-m-d H:i:s') . "\n\n");
-//
-//            if ($this->_profiler) {
-//                $this->profilerLog($resource, $pageNumber);
-//            }
-//        }
+        while (!is_null($data['next_page'])) {
+            $pageNumber++;
+
+            $this->trace("START: Processing page {$pageNumber} " . Mage::getModel('core/date')->gmtDate('Y-m-d H:i:s') . "\n");
+
+            if ($resource == 'catalog') {
+                $data = $cronModel
+                    ->catalog($this->_pageSize, $this->getStoreId());
+            }
+            else {
+                if ($resource == 'usage') {
+                    $data = $cronModel
+                        ->usage($this->_pageSize, $this->getStoreId());
+                }
+            }
+
+            $this->trace("FINISH: Processing page {$pageNumber} " . Mage::getModel('core/date')->gmtDate('Y-m-d H:i:s') . "\n\n");
+
+            if ($this->_profiler) {
+                $this->profilerLog($resource, $pageNumber);
+            }
+        }
 
         $this->trace("********** Finished {$resource} " . Mage::getModel('core/date')->gmtDate('Y-m-d H:i:s') . " <<< **********\n\n\n", true);
     }
@@ -195,117 +207,6 @@ class Ebizmarts_Recommender_AiShell extends Mage_Shell_Abstract
         $pageNumber = str_pad($pageNumber, 5, '0', STR_PAD_LEFT);
 
         $this->_profilerLogger->logprofiler($this->getStoreId(), $resource, 'page_'.$pageNumber);
-    }
-
-    /**
-     * Generate extensive cache.
-     *
-     */
-    public function generateCache()
-    {
-        $resource = $this->getArg('resource');
-
-        $h = Mage::helper('bakerloo_restful/pages');
-
-        $cacheable = $h->dbCacheResources();
-        $dbTableName = $cacheable[$resource]['tableName'];
-
-        $path = Mage::helper('bakerloo_restful/cli')->getPathToDb($this->getStoreId(), $resource, false);
-
-        $sqliteName = "{$dbTableName}.sqlite";
-        $zipiName   = "{$dbTableName}.zip";
-
-        $basePath = $path . DS;
-        $dbName   = $basePath . $sqliteName;
-        $zipName  = $basePath . $zipiName;
-
-        if (file_exists($dbName)) {
-            @unlink($dbName);
-        }
-
-        $db = new SQLite3($dbName);
-
-        $createTableSQL = $cacheable[$resource]['create'];
-
-        $h->createCacheTables($createTableSQL, $db);
-
-        $recordsCount = 0;
-
-        //Read static pages.
-        $io = $h->getIo($this->getStoreId(), $resource, false);
-
-        $files = $h->getPagesToProcess($path);
-
-        $actpage = 1;
-
-        foreach ($files as $fileInfo) {
-            $fileName = $fileInfo->getFilename();
-
-            if ($fileName == "_pagedata.ser") {
-                $fileData = unserialize($io->read($fileName));
-                $this->trace("Processing {$fileData["totalrecords"]} $resource in #{$fileData["totalpages"]} pages.\n\n\n", true);
-                continue;
-            }
-
-            $fileData = unserialize($io->read($fileName));
-
-            if ($fileData === false) {
-                $this->trace("Could not decode page: {$fileName}.", true);
-                $db->close();
-                $this->trace("Finished with error.\n\n\n", true);
-                return;
-            }
-
-            if ('products' == $resource) {
-                $recordsCount += $h->populateProducts($fileData, $db, $this->getStoreId());
-            }
-
-            if ('inventory' == $resource) {
-                $recordsCount += $h->populateProductsInventory($fileData, $db);
-            }
-
-            if ('customers' == $resource) {
-                $recordsCount += $h->populateCustomers($fileData, $db);
-            }
-
-            $processed = $recordsCount;
-            $this->trace("Processed {$processed} records.\n\n\n", true);
-
-            $actpage++;
-
-            unset($fileData);
-        }
-
-        $db->close();
-
-        if ($recordsCount == 0) {
-            $this->trace("No pages found to create DB. Resource: {$resource}.\n\n\n", true);
-        }
-
-        $insertedRows = $h->countRows($dbName, $dbTableName);
-        if ($insertedRows !== $recordsCount) {
-            $this->trace("Record count dont match #{$insertedRows} vs #{$recordsCount} \n Resource: {$resource}.\n\n", true);
-        }
-
-
-        //Create ZIP file.
-        if (file_exists($zipName)) {
-            @unlink($zipName);
-        }
-
-        $zip = new ZipArchive;
-        $zipOpen = $zip->open($zipName, ZipArchive::CREATE);
-        if ($zipOpen === true) {
-            $zip->addFile($dbName, $sqliteName);
-            $zip->close();
-
-            $this->trace("**********Created ZIP OK.**********\n\n", true);
-        } else {
-            $this->trace("ERROR: Could not create ZIP Error: `{$zipOpen}`.**********\n\n\n", true);
-        }
-
-
-        $this->trace("********** Finished {$resource} " . Mage::getModel('core/date')->gmtDate('Y-m-d H:i:s') . " <<< **********\n\n\n", true);
     }
 
     /**
