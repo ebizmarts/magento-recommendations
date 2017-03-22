@@ -125,14 +125,7 @@ class Ebizmarts_Recommender_Model_Cron
             ->addAttributeToSelect('sku');
 
         $products->addStoreFilter($storeId);
-        $products->joinAttribute(
-            'name',
-            'catalog_product/name',
-            'entity_id',
-            null,
-            'inner',
-            $storeId
-        );
+
         $products->joinAttribute(
             'description',
             'catalog_product/description',
@@ -141,41 +134,29 @@ class Ebizmarts_Recommender_Model_Cron
             'inner',
             $storeId
         );
-        $products->joinAttribute(
-            'position',
-            'catalog_product/position',
-            'entity_id',
-            null,
-            'left',
-            $storeId
-        );
-        $products->joinAttribute(
-            'position_amezaga',
-            'catalog_product/position_amezaga',
-            'entity_id',
-            null,
-            'left',
-            $storeId
-        );
-        $products->joinAttribute(
-            'position_constitution',
-            'catalog_product/position_constitution',
-            'entity_id',
-            null,
-            'left',
-            $storeId
-        );
-        $products->joinAttribute(
-            'is_promo_product',
-            'catalog_product/is_promo_product',
-            'entity_id',
-            null,
-            'left',
-            $storeId
-        );
+
+        $featureAttributes = Mage::getStoreConfig('catalog/ebizmarts_price_inteligence_features/attributes', $storeId);
+        $featureAttributesArray = explode(',', $featureAttributes);
+
+        $attributesCount = count($featureAttributesArray);
+        for ($i = 0; $i < $attributesCount; $i++) {
+            $products->joinAttribute(
+                $featureAttributesArray[$i],
+                'catalog_product/' . $featureAttributesArray[$i],
+                'entity_id',
+                null,
+                'inner',
+                $storeId
+            );
+        }
+
         $products->addCategoryIds();
 
         $totalRecords = $products->getSize();
+
+        if (0 === $totalRecords) {
+            Mage::throwException("No products found.");
+        }
 
         $products->getSelect()->order(['sku ASC']);
 
@@ -204,18 +185,22 @@ class Ebizmarts_Recommender_Model_Cron
             $catalogItem->setCategory(implode("-", $product->getCategoryIds()));
             $catalogItem->setDescription(preg_replace("/[\n\r]/"," ", strip_tags(html_entity_decode($product->getDescription()))));
 
-            $position = $product->getPosition();
+            /*$position = $product->getPosition();
             if (empty($position)) {
                 $position = $product->getPositionAmezaga();
                 if (empty($position)) {
                     $position = $product->getPositionConstitution();
                 }
-            }
+            }*/
 
             $features = [];
-            $features []= 'Position=' . $position;
 
-            $features []= 'PromoProduct=' . (int)$product->getIsPromoProduct();
+            for ($i = 0; $i < $attributesCount; $i++) {
+                $features []= ucwords($featureAttributesArray[$i]) . '=' . $featureAttributesArray[$i];
+            }
+
+            //$features []= 'Position=' . $position;
+            //$features []= 'PromoProduct=' . (int)$product->getIsPromoProduct();
 
             $catalogItem->setFeaturesList(implode(", ", $features));
 
