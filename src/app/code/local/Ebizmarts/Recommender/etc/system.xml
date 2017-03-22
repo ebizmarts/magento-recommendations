@@ -3,7 +3,7 @@
     <sections>
         <catalog>
             <groups>
-                <features translate="label">
+                <ebizmarts_price_inteligence_features translate="label">
                     <label>Product Inteligence</label>
                     <fronted_type>text</fronted_type>
                     <sort_order>999</sort_order>
@@ -21,7 +21,7 @@
                             <show_in_store>0</show_in_store>
                         </attributes>
                     </fields>
-                </features>
+                </ebizmarts_price_inteligence_features>
             </groups>
         </catalog>
     </sections>
